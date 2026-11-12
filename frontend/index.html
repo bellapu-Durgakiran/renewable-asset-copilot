@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Renewable Asset Fault & Anomaly Copilot</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; margin: 0; background: #f4f7f6; color: #1e293b; }
+    header { background: #12372a; color: #fff; padding: 20px 32px; }
+    header h1 { margin: 0; font-size: 22px; }
+    .container { max-width: 1150px; margin: 24px auto; padding: 0 20px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .kpi { background: #fff; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .kpi span { font-size: 12px; color: #64748b; text-transform: uppercase; }
+    .kpi strong { display: block; font-size: 24px; margin-top: 4px; color: #12372a; }
+    .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+    .card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .alert-btn { display: block; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px;
+      border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .alert-btn:hover { background: #fee2e2; }
+    .chat-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    input { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
+    button.primary { background: #12372a; color: #fff; border: 0; padding: 10px 16px; border-radius: 8px; cursor: pointer; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; white-space: pre-wrap; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Renewable Asset Fault & Anomaly Detection Copilot</h1>
+  </header>
+  <div class="container">
+    <div class="kpis">
+      <div class="kpi"><span>Records Analyzed</span><strong id="k-total">-</strong></div>
+      <div class="kpi"><span>Anomalies Flagged</span><strong id="k-anom">-</strong></div>
+      <div class="kpi"><span>Validation Precision</span><strong id="k-prec">-</strong></div>
+      <div class="kpi"><span>Validation Recall</span><strong id="k-rec">-</strong></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Telemetry & Anomaly Timeline</h3>
+        <canvas id="chart" height="170"></canvas>
+        <h4 style="margin-top:18px;">Flagged Alerts (Click to Inspect)</h4>
+        <div id="alert-list">Loading alerts...</div>
+      </div>
+
+      <div class="card">
+        <h3>Operator Copilot Diagnosis</h3>
+        <div class="chat-row">
+          <input id="query" placeholder="Ask e.g. Why did WTG_07 fault?" />
+          <button class="primary" onclick="askCopilot()">Ask</button>
+        </div>
+        <pre id="output">Select an alert or ask a question to inspect root cause & SOP checks.</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      const res = await fetch('/api/telemetry');
+      const data = await res.json();
+      document.getElementById('k-total').textContent = data.metrics.total_records;
+      document.getElementById('k-anom').textContent = data.metrics.anomalies_detected;
+      document.getElementById('k-prec').textContent = (data.metrics.precision * 100).toFixed(0) + '%';
+      document.getElementById('k-rec').textContent = (data.metrics.recall * 100).toFixed(0) + '%';
+
+      const list = document.getElementById('alert-list');
+      list.innerHTML = '';
+      Object.entries(data.explanations).forEach(([ts, info]) => {
+        const btn = document.createElement('button');
+        btn.className = 'alert-btn';
+        btn.textContent = `[TS #${ts}]${info.fault_code} — Click for SOP`;
+        btn.onclick = () => inspectTs(Number(ts));
+        list.appendChild(btn);
+      });
+
+      const labels = data.records.map(r => `${r.asset_id}#${r.timestamp_id}`);
+      const vib = data.records.map(r => r.vibration_mm_s);
+      const temp = data.records.map(r => r.temperature_c);
+      const pointColors = data.records.map(r => r.is_anomaly ? '#dc2626' : 'rgba(18,55,42,0.4)');
+      const pointRadii = data.records.map(r => r.is_anomaly ? 6 : 2);
+
+      new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Vibration (mm/s)', data: vib, borderColor: '#dc2626', pointBackgroundColor: pointColors, pointRadius: pointRadii, yAxisID: 'y' },
+            { label: 'Temperature (°C)', data: temp, borderColor: '#0284c7', pointRadius: 1, yAxisID: 'y1' }
+          ]
+        },
+        options: { responsive: true, scales: { y: { position: 'left' }, y1: { position: 'right', grid: { drawOnChartArea: false } } } }
+      });
+
+      const firstTs = Number(Object.keys(data.explanations)[0]);
+      if (!isNaN(firstTs)) inspectTs(firstts);
+    }
+
+    async function inspectTs(ts) {
+      const r = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: `Inspect timestamp ${ts}`, timestamp_id: ts })
+      });
+      document.getElementById('output').textContent = JSON.stringify(await r.json(), null, 2);
+    }
+
+    async function askCopilot() {
+      const text = document.getElementById('query').value;
+      const r = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      document.getElementById('output').textContent = JSON.stringify(await r.json(), null, 2);
+    }
+
+    init();
+  </script>
+</body>
+</html>

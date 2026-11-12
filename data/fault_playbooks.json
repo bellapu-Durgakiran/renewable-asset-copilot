@@ -1,0 +1,34 @@
+[
+  {
+    "fault_id": "SOLAR_NIGHT_THERMAL",
+    "asset_type": "SOLAR",
+    "signature": "Nighttime thermal and vibration spike with zero irradiance",
+    "likely_cause": "Inverter cooling fan obstruction/failure or stuck relay drawing parasitic current during standby.",
+    "next_checks": [
+      "Inspect inverter cabinet exhaust fans and air filters for blockages.",
+      "Check DC/AC contactor status and auxiliary power draw via SCADA.",
+      "Perform thermal imaging on IGBT heatsink assembly before morning ramp-up."
+    ]
+  },
+  {
+    "fault_id": "WIND_DRIVETRAIN_DERATE",
+    "asset_type": "WIND",
+    "signature": "Power curve underperformance accompanied by elevated nacelle vibration and temperature",
+    "likely_cause": "High-speed shaft bearing wear, gearbox lubrication degradation, or pitch/yaw misalignment causing thermal derating.",
+    "next_checks": [
+      "Review SCADA gearbox oil temperature and pressure alarms.",
+      "Inspect nacelle accelerometer spectrum for bearing frequency peaks.",
+      "Verify blade pitch angle calibration against current wind speed."
+    ]
+  },
+  {
+    "fault_id": "GENERAL_SENSOR_DRIFT",
+    "asset_type": "ALL",
+    "signature": "Isolated statistical deviation without multi-sensor correlation",
+    "likely_cause": "Transient telemetry noise or single-sensor calibration drift.",
+    "next_checks": [
+      "Cross-check reading against redundant SCADA channel.",
+      "Monitor over the next 2–3 hourly intervals before dispatching a technician."
+    ]
+  }
+]
